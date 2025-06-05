@@ -12,13 +12,29 @@ import "./KanbanBoard.css";
 const KanbanContext = createContext();
 
 const initialState = {
-  todo: [
-    { id: "1", text: "Task A" },
-    { id: "2", text: "Task B" },
-  ],
+  todo: [],
   inProgress: [],
   done: [],
 };
+
+
+function TaskInput(){
+    const {dispatch} = useContext(KanbanContext);
+    const [text, setText] = useState('');
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if(!text.trim()) return;
+        dispatch({type: 'ADD_TASK', payload: {text}});
+        setText('');
+    };
+    return(
+        <form className = "task-form" onSubmit = {handleSubmit}>
+            <input type="text" value={text} onChange={e => setText(e.target.value)} />
+            <button type="submit">Add</button>
+        </form>
+    )
+}
 
 function KanbanReducer(state, action) {
   switch (action.type) {
@@ -29,6 +45,16 @@ function KanbanReducer(state, action) {
         [from]: state[from].filter((c) => c.id !== card.id),
         [to]: [...state[to], card],
       };
+    }
+    case 'ADD_TASK' : {
+        const newTask = {
+            id: Date.now().toString(),
+            text : action.payload.text,
+        }
+        return{
+            ...state,
+            todo: [...state.todo , newTask]
+        };
     }
     default:
       return state;
@@ -64,7 +90,7 @@ function Card({ card, from }) {
   );
 }
 
-function Column({ title, columnkey }) {
+function Column({ title, columnkey , className }) {
   const { state, dispatch } = useContext(KanbanContext);
   const dropRef = useRef(null);
 
@@ -92,7 +118,7 @@ function Column({ title, columnkey }) {
   }, [dispatch, columnkey]);
 
   return (
-    <div className="column" ref={dropRef}>
+    <div className = {`column ${className}`} ref={dropRef}>
       <h2>{title}</h2>
       {state[columnkey].map((card) => (
         <Card key={card.id} card={card} from={columnkey} />
@@ -104,10 +130,13 @@ function Column({ title, columnkey }) {
 function KanbanBoard() {
   return (
     <KanbanProvider>
+      <div className="board-container">
+        <TaskInput />
       <div className="board">
-        <Column title="To Do" columnkey="todo" />
-        <Column title="In Progress" columnkey="inProgress" />
-        <Column title="Done" columnkey="done" />
+        <Column title="To Do" columnkey="todo" className = "column-red"/>
+        <Column title="In Progress" columnkey="inProgress" className = "column-yellow" />
+        <Column title="Done" columnkey="done" className = "column-green"/>
+      </div>
       </div>
     </KanbanProvider>
   );
