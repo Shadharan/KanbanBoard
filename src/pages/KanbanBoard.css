@@ -175,7 +175,7 @@ body {
   box-shadow: 0 4px 14px rgba(0, 114, 255, 0.3);
   justify-content: center;
   align-content: center;
-  min-width: 200px;
+  min-width: 150px;
   transition: 
     background 0.3s ease,
     color 0.3s ease,
