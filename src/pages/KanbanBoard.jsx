@@ -20,16 +20,24 @@ const initialState = {
 function KanbanReducer(state, action) {
   switch (action.type) {
     case "MOVE_CARD": {
-      const { card, from, to } = action.payload;
-      if (from === to) return state;
+      const { card, from, to, targetId } = action.payload;
+      const newSource = state[from].filter(c => c.id !== card.id);
+      let newTarget = [...state[to]].filter(c => c.id !== card.id); 
+      const targetIndex = newTarget.findIndex(c => c.id === targetId);
+
+      if (targetIndex === -1 || from !== to) {
+        newTarget.push(card);
+      } else {
+        newTarget.splice(targetIndex, 0, card);
+      }
+
       return {
         ...state,
-        [from]: state[from].filter((c) => c.id !== card.id),
-        [to]: state[to].some((c) => c.id === card.id)
-          ? state[to]
-          : [...state[to], card],
+        [from]: from === to ? state[from] : newSource,
+        [to]: newTarget,
       };
     }
+
     case "ADD_TASK": {
       const newTask = {
         id: Date.now().toString(),
@@ -45,6 +53,15 @@ function KanbanReducer(state, action) {
       return {
         ...state,
         [from]: state[from].filter((card) => card.id !== cardId),
+      };
+    }
+    case "EDIT_CARD": {
+      const { cardId, from, newText } = action.payload;
+      return {
+        ...state,
+        [from]: state[from].map((card) =>
+          card.id === cardId ? { ...card, text: newText } : card
+        ),
       };
     }
     default:
@@ -86,11 +103,60 @@ function TaskInput() {
   );
 }
 
-function Card({ card, from }) {
+function Card({ card, from, dispatch }) {
   const dragRef = useRef(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedText, setEditedText] = useState(card.text);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    setEditedText(card.text);
+  }, [card.text]);
 
   const handleDragStart = (e) => {
-    e.dataTransfer.setData("card", JSON.stringify({ card, from }));
+    if (!isEditing) {
+      e.dataTransfer.setData("card", JSON.stringify({ card, from }));
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const data = JSON.parse(e.dataTransfer.getData("card"));
+    dispatch({
+      type: "MOVE_CARD",
+      payload: { card: data.card, from: data.from, to: from , targetId : card.id },
+    })
+  }
+
+  const handleDoubleClick = () => {
+    setIsEditing(true);
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+  };
+
+  const handleEditSubmit = () => {
+    const trimmed = editedText.trim();
+    if (trimmed && trimmed !== card.text) {
+      dispatch({
+        type: "EDIT_CARD",
+        payload: { cardId: card.id, from, newText: trimmed },
+      });
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      handleEditSubmit();
+    } else if (e.key === "Escape") {
+      setEditedText(card.text);
+      setIsEditing(false);
+    }
   };
 
   return (
@@ -99,11 +165,27 @@ function Card({ card, from }) {
       draggable
       ref={dragRef}
       onDragStart={handleDragStart}
+      onDoubleClick={handleDoubleClick}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
     >
-      {card.text}
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          type="text"
+          value={editedText}
+          onChange={(e) => setEditedText(e.target.value)}
+          onBlur={handleEditSubmit}
+          onKeyDown={handleKeyDown}
+          className="edit-input"
+        />
+      ) : (
+        <span>{card.text}</span>
+      )}
     </div>
   );
 }
+
 
 function Column({ title, columnkey, className }) {
   const { state, dispatch } = useContext(KanbanContext);
@@ -136,7 +218,7 @@ function Column({ title, columnkey, className }) {
     <div className={`column ${className}`} ref={dropRef}>
       <h2>{title}</h2>
       {state[columnkey].map((card) => (
-        <Card key={card.id} card={card} from={columnkey} />
+        <Card key={card.id} card={card} from={columnkey} dispatch={dispatch} />
       ))}
     </div>
   );
